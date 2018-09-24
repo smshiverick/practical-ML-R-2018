@@ -1,0 +1,107 @@
+# PRACTICAL MACHINE LEARNING IN R - Jeff Leek
+# Week 2.4: Plotting Predictors with Caret package and ggplot2
+
+## EXAMPLE 2: WAGE DATA from ISLR
+* Analysis of wage data from Introduction to Statistical Learning
+* Install ISLR package, load ggplot2, caret, load wage data 
+* NOTE: Sample consists of N=3000 males from Mid-Atlantic region
+
+```{r}
+install.packages("ISLR")
+library(ISLR); library(ggplot2); library(caret)
+data(Wage)
+summary(Wage)
+```
+
+## Build Training / Test Sets
+```{r}
+inTrain <- createDataPartition(y=Wage$wage, p=0.7, list=FALSE)
+
+training <- Wage[inTrain, ]
+testing <- Wage[-inTrain, ]
+dim(training); dim(testing)
+```
+
+## Feature plot (caret package)
+* All plots constructed using training set
+* Select pairplots 
+
+```{r}
+#featurePlot(x=training[, c("age", "education", "jobclass")], 
+#            y=training$wage, plots="pairs")
+
+pairs(wage ~ age + education + jobclass, data=training);
+qplot(age, wage, data=training)
+```
+
+## Qplot with color (ggplot2 package)
+* Sort jobclass by color
+* Separate class of high wage jobs for informatin sector
+
+```{r}
+qplot(age, wage, colour=jobclass, data=training)
+```
+
+## Add regression smooters (ggplot2 package)
+* Sort education by color
+* Add geom-smoother for linear model function
+* Fits linear model for each education class, with regression line on plot
+
+```{r}
+qq = qplot(age, wage, colour=education, data=training)
+qq + geom_smooth(method='lm', formula = y~x)
+```
+
+## Use cut2 for making factors (Hmisc package)
+* Useful to break a variable into different categories, e.g., wage
+* load Hmisc, and indicate number of groups 'g' with cut2
+* Table shows cutoff points for each category
+
+```{r}
+library(Hmisc)
+cutWage <- cut2(training$wage, g=3)
+table(cutWage)
+```
+## Create Boxplots with cut2 groupings
+* Plot different wage groups in boxplots using qplot
+* See relationship between Wage and Age a bit more clearly
+
+```{r}
+p1 <- qplot(cutWage, age, data=training, fill=cutWage,
+            geom = c("boxplot"))
+p1
+```
+
+## Boxplots with Points overlayed
+* Add actual data points on top of the boxplots
+* Large number of dots suggests any trends are real
+
+```{r}
+p2 <- qplot(cutWage, age, data=training, fill=cutWage,
+            geom = c("boxplot", "jitter"))
+grid.arrange(p1,p2, ncol=2)
+```
+
+## Tables
+* Can also use the factorized version to look at continuous tables of data
+* Compare factor version of wages to to jobclass
+* More industrial jobs in the lower wage section, more high wage in information sector
+
+```{r}
+t1 <- table(cutWage, training$jobclass)
+t1
+```
+
+###  Use prop.table command to return table of proportions
+```{r}
+prop.table(t1,1)
+```
+
+## Density Plots
+* Plot values of continuous predictors as proportion density
+* Use qplot() to plot wage distribution by education level
+* Good for examining distributions across different groups
+
+```{r}
+qplot(wage, colour=education, data=training, geom='density')
+```

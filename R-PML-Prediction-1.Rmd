@@ -1,0 +1,105 @@
+# PRACTICAL MACHINE LEARNING - Jeffrey Leek, JHU
+# PREDICTION MODEL Examples
+
+## 1. Email Classification
+* Install kernlab package, load spam dataset
+
+```{r}
+install.packages("kernlab")
+library(kernlab)
+data(spam)
+head(spam)
+```
+## Create Simple Frequency Plot 
+* Plot occureence of word 'your' in emails
+
+## Simple Prediction Algorithm
+•	Find a value C, 
+•	If frequency of ‘your’ in email > C, then predict “spam”
+*  Add vertical line to demarcate decision boundary
+
+```{r}
+plot(density(spam$your[spam$type=='nonspam']), col='blue', main="", xlab="Frequency of 'your'")
+lines(density(spam$your[spam$type=="spam"]), col='red')
+abline(v=0.5, col='black')
+```
+
+## Generate Prediction Table
+* Calculate proportion of correct predictions
+* Measure of prediction model accuracy
+
+```{r}
+prediction <- ifelse(spam$your > 0.5, "spam", "nonspam")
+table(prediction, spam$type)/length(spam$type)
+
+```
+## Accuracy = 0.459 + 0.292 = 0.751
+* The model is 75% accurate
+* Optimistic estimate of overall error rate
+
+
+# Example 2: In-sample versus out of sample error
+* Train set versus test set error and model accuracy 
+
+```{r}
+library(kernlab); data(spam); set.seed(333); 
+smallSpam = spam[sample(dim(spam)[1], size=10),]
+spamLabel = (smallSpam$type=="spam")*1 + 1
+plot(smallSpam$capitalAve, col=spamLabel)
+```
+# Email Prediction Models
+## Prediction Rule 1: Perfect prediction
+* Model reduces in-smaple error rate, 
+* but overfits the data
+
+```{r}
+rule1 <- function(x){
+    prediction <- rep(NA, length(x))
+    prediction[x > 2.70] <- "spam"
+    prediction[x < 2.40] <- "nonspam"
+    prediction[x >= 2.40 & x <= 2.45] <- "spam"
+    prediction[x > 2.45 & x <= 2.70] <- "nonspam"
+    return(prediction)
+}
+table(rule1(smallSpam$capitalAve), smallSpam$type)
+```
+## Prediction Rule 2 - Simple rule
+* Higher error rate, but fits the data better
+* Misclassifies one 'spam' email as "nonspam"
+
+```{r}
+rule2 <- function(x){
+    prediction <- rep(NA, length(x))
+    prediction[x > 2.40] <- "spam"
+    prediction[x < 2.40] <- "nonspam"
+    return(prediction)
+}
+table(rule2(smallSpam$capitalAve), smallSpam$type)
+```
+
+## Apply Prediction Model to Complete Spam Data set
+
+```{r}
+table(rule1(spam$capitalAve), spam$type)
+```
+
+
+```{r}
+table(rule2(spam$capitalAve), spam$type)
+```
+
+## Look at Model Accuracy 
+* Simple rule is more accurate 
+
+```{r}
+sum(rule1(spam$capitalAve)==spam$type)
+sum(rule2(spam$capitalAve)==spam$type)
+```
+## What is overfitting?
+* The data has two parts: Signal and noise
+* Goal of prediction model is to identify the signal, minimize noise
+* Perfect prediction model captures both, but won't predict new data well
+
+
+
+

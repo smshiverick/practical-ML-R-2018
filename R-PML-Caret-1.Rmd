@@ -1,0 +1,199 @@
+# PRACTICAL MACHINE LEARNING - Jeff Leek, JHU
+## Week 2: The Caret Package
+---
+
+# CARET = CLASSIFICATION And REGRESSION TRAINING
+* First, load caret package and kernlab, spam data 
+* Partition data into train and test sets (75%)
+* Examine dimensions of training set
+
+```{r}
+library(caret); library(kernlab); data(spam)
+inTrain <- createDataPartition(y=spam$type, p=0.75, list=FALSE)
+
+training <- spam[inTrain, ]
+testing <- spam[-inTrain, ]
+dim(training)
+```
+
+## EXAMPLE1: Fit General Linear Model to Training set
+* Set the seed, assign glm model with DV=type
+* Use training data set, include all variables as predictors
+
+```{r}
+library(e1071)
+set.seed(32343)
+modelFit <- train(type ~., data=training, method='glm')
+modelFit
+```
+
+## Examine Final Model
+
+```{r}
+modelFit <- train(type ~., data=training, method='glm')
+modelFit$finalModel
+```
+## Predict on New Samples
+
+```{r}
+predictions <- predict(modelFit, newdata=testing)
+predictions
+
+```
+
+## Evaluate model fit with Confusion Matrix
+* Use confusionMatrix() function
+* Pass predictions and outcome on testing sample
+
+```{r}
+confusionMatrix(predictions, testing$type)
+```
+
+
+# SECTION 2: DATA SPLITTING with Caret Package 
+
+## K-fold CROSS VALIDATION
+* Split training set into k- different folds
+
+```{r}
+set.seed(32323)
+folds <- createFolds(y=spam$type, k=10, list=TRUE, returnTrain = TRUE)
+sapply(folds, length)
+folds[[1]][1:10]
+```
+
+## Examine (return) Test set data
+* Set parameter, returnTrain = False, will output the test set data
+
+```{r}
+set.seed(32323)
+folds <- createFolds(y=spam$type, k=10, list=TRUE, returnTrain = FALSE)
+sapply(folds, length)
+folds[[1]][1:10]
+```
+
+## Resampling (Bootstrapping)
+* Use createResample() function, 
+* Indicate number of bootstraps, and whether to list output
+
+```{r}
+set.seed(32323)
+folds <- createResample(y=spam$type, times=10, list = TRUE)
+sapply(folds, length)
+folds[[1]][1:10]
+```
+
+## Time Slices
+* Analyzing data for forecasting, check continuous values in time (1:1000)
+* Create slices in a window with about 20 samples in them; 20 samples in first window
+
+```{r}
+set.seed(32323)
+tme <- 1:1000
+folds <- createTimeSlices(y=tme, initialWindow = 20, horizon = 10)
+names(folds)
+
+folds$train[[1]]
+folds$test[[1]]
+```
+
+## Setting parameters: Train Options
+* preprocess – set preprocessing options
+* weights – upgrade or down grade features
+* metrics – accuracy for categorical vars, root MSE for continuous variables
+
+```{}
+args(train.default)
+
+function (x, y, method = "rf", preProcess = NULL, ..., weights = NULL,
+    metric = ifelse(is.factor(y), "Accuracy", "RMSE"), maximize = ifelse(metric == "RMSE", FALSE, TRUE), trControl = trainControl(), tuneGrid = NULL, tuneLength = 3)
+NULL
+```
+
+
+## trainControl Argument
+* Sampline with bootstrapping (or cross-validation), number of times
+* Size of training set: p-parameter
+* Initial window for number of time points in data
+* Set pre-processing bounds, or use parallel processing
+```{}
+args(trainControl)
+
+function (method = "boot", number = ifelse(method %in% c("cv", 
+    "repeatedcv"), 10, 25), repeats = ifelse(method %in% c("cv", 
+    "repeatedcv"), 1, number), p = 0.75, initialWindow = NULL, 
+    horizon = 1, fixedWindow = TRUE, verboseIter = FALSE, returnData = TRUE, 
+    returnResamp = "final", savePredictions = FALSE, classProbs = FALSE, 
+    summaryFunction = defaultSummary, selectionFunction = "best", 
+    custom = NULL, preProcOptions = list(thresh = 0.95, ICAcomp = 3, k = 51), 
+    index = NULL, indexOut = NULL, timingSamps = 0, 
+    predictBounds = rep(FALSE, 2), seeds = NA, allowParallel = TRUE)
+NULL
+```
+
+## Setting the Seed
+* Most procedures rely on resampling the data
+* Set overall seed or set seed for each resample
+* Seeding each resample is useful for parallel fits
+
+```{r}
+set.seed(1235)
+modelFit2 <- train(type ~ ., data=training, method="glm")
+modelFit2
+```
+
+====================================
+
+# 2.3 PLOTTING PREDICTORS
+## EXAMPLE 2: WAGE DATA from ISLR
+* Analysis of wage data from Introduction to Statistical Learning
+* Install ISLR package, load ggplot2, caret, load wage data 
+* NOTE: Sample consists of N=3000 males from Mid-Atlantic region
+
+```{r}
+install.packages("ISLR")
+library(ISLR); library(ggplot2); library(caret)
+data(Wage)
+summary(Wage)
+```
+## Build Training / Test Sets
+
+```{r}
+inTrain <- createDataPartition(y=Wage$wage, p=0.7, list=FALSE)
+
+training <- Wage[inTrain, ]
+testing <- Wage[-inTrain, ]
+dim(training); dim(testing)
+```
+
+## Feature plot (caret package)
+* All plots constructed using training set
+* Select pairplots 
+
+```{r}
+#featurePlot(x=training[,c("age", "education", "jobclass")], 
+#            y=training$wage, plots="pairs")
+
+pairs(wage ~ age + education + jobclass, data=training);
+
+qplot(age, wage, data=training)
+```
+
+## Qplot with color (ggplot2 package)
+* Sort jobclass by color
+* Separate class of high wage jobs for informatin sector
+
+```{r}
+qplot(age, wage, colour=jobclass, data=training)
+```
+
+## Add regression smooters (ggplot2 package)
+* Sort education by color
+* Add geom-smoother for linear model function
+* Plot fits linear regression line for each relationship
+
+```{r}
+qq = qplot(age, wage, colour=education, data=training)
+qq + geom_smooth(method='lm', formula = y~x)
+```
+

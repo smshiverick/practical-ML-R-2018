@@ -1,0 +1,311 @@
+# PRACTICAL MACHINE LEARNING - Jeff Leek, JHU
+# WEEK 2: PREDICTION
+
+## Regression Prediction Model in R
+* Load caret package, Old Faith data on eruptions, set seed
+* Create training and tests sets
+* Variables are length of eruption and waiting time between eruptions
+
+```{r}
+library(caret); data("faithful"); set.seed(333)
+inTrain <- createDataPartition(y=faithful$waiting,
+                               p=0.5, list=FALSE)
+trainFaith <- faithful[inTrain,] 
+testFaith <- faithful[-inTrain,]
+head(trainFaith)
+
+```
+
+## Fit Linear Model 
+* EDi = b0 + b1WTi + ei
+
+```{r}
+lm1 <- lm(eruptions ~ waiting, data = trainFaith)
+summary(lm1)
+```
+
+## Plot Model Fit on Training Set
+* Extract fitted values (lm1) from regression model 
+
+```{r}
+plot(trainFaith$waiting, trainFaith$eruptions, 
+     pch=19, col="blue", xlab="Waiting Time", ylab="Duration Time")
+lines(trainFaith$waiting, lm1$fitted, lwd=3)
+```
+
+## Predict a new value (expected values)
+* ED^ = b^0 + b^1WT
+* no error term because we don't know what error values is
+* Use coef() function to obtain intercept and parameter estimate
+
+```{r}
+coef(lm1)[1] + coef(lm1)[2]*80
+
+```
+## Use predict to obtain estimate value
+* Uses data.frame and predict function to obtain expected value of Y
+
+```{r}
+newdata <- data.frame(waiting=80)
+predict(lm1, newdata)
+```
+
+## Plot predictions for Training and Test Sets - side by side
+* Create 1 by 2 plot grid for side by side plot
+* Plot Train and Test waiting times separately
+
+```{r}
+par(mfrow=c(1,2))
+plot(trainFaith$waiting, trainFaith$eruptions, pch=19, col="blue", xlab="Waiting", ylab="Duration"); lines(trainFaith$waiting, lm1$fitted, lwd=3)
+plot(testFaith$waiting, testFaith$eruptions, pch=19, col="green", xlab="Waiting", ylab="Duration"); lines(testFaith$waiting, lm1$fitted, lwd=3)
+```
+
+### Model does not fit Test set that well
+* Still captures overall trend explained by waiting time
+
+## Get Training set / Test set Errors (RMSE)
+* Use fitted values from the model fit 
+* Calculate difference between predicted and actual values
+* Square the differences, sum them and then take the square
+
+```{r}
+# Root Mean Square Error (RMSE) on Training set
+sqrt(sum((lm1$fitted-trainFaith$eruptions)^2))
+```
+```{r}
+# Calculate RMSE on Test set
+sqrt(sum((predict(lm1,newdata = testFaith) - testFaith$eruptions)^2))
+```
+
+## Error on test set will always be larger than training set. 
+* Out of sample error from using new data
+
+## Prediction Intervals
+* Calculate new set of predictions for test set
+* Select interval, add lines indicating expected interval of prediction
+* Regions where we expect the predicted values to land
+
+```{r}
+pred1 <- predict(lm1, newdat=testFaith, interval = "prediction")
+ord <- order(testFaith$waiting)
+plot(testFaith$waiting, testFaith$eruptions, pch=19, col="blue") 
+matlines(testFaith$waiting[ord], pred1[ord,], type="l",,
+         col=c(1,2,2), lty=c(1,1,1), lwd=3)
+```
+Plots range of values of possible predictions
+
+## Use Caret package to do the same
+* Use train() function to build the model
+* Regress eruptions on waiting time
+* Return summary of final model fit
+
+```{r}
+modFit <- train(eruptions ~ waiting, data = trainFaith, method="lm")
+summary(modFit$finalModel)
+```
+
+## PREDICTING with REGRESSION - MULTIPLE COVARIATES 
+
+## EXAMPLE: WAGE Data from ISLR
+* Fit model to predict wages of men in Mid-Atlantic region
+* Select out the outcome variable we are predicting, log of wages
+
+```{r}
+library(ISLR); library(ggplot2); library(caret);
+data(Wage); Wage <- subset(Wage, select=-c(logwage))
+summary(Wage)
+```
+
+## Get Training and Test Sets
+* Use createDataPartition() function to partition data set
+* All exploration done on training set
+
+```{r}
+inTrain <- createDataPartition(y=Wage$wage, p=0.7, list=FALSE)
+training <- Wage[inTrain,]
+testing <- Wage[-inTrain,]
+dim(training); dim(testing)
+```
+
+## Construct Feature Plot
+* Exploratory plot show split in wages between job class
+
+```{r}
+featurePlot(x=training[,c("age", "education", "jobclass")], 
+            y=training$wage, plot="pairs")
+```
+## Plot Age versus Wage
+* Trend apparent, but perhaps not linear
+```{r}
+qplot(age, wage, data=training)
+```
+
+## Plot Age, Wage, and JobClass by color
+* Separate class of high wage jobs for informatin sector
+
+```{r}
+qplot(age, wage, colour=jobclass, data=training)
+```
+
+## Plot Age, Wage, and Education by Color
+* Information jobs predicting some portion of variation in wages
+* Advanced degrees accounting from some variability in high wages
+
+```{r}
+qplot(age, wage, colour=education, data=training)
+```
+
+## Fit Linear Model to Wage Data
+* Taking into account age, jobclass, and education level
+* Create indicator variables for job class and education level
+* EDi = b0 + b1Age + b2I(Jobclassi="Information") + SumLambdaI(Educationi = levelk)
+
+```{r}
+modFit <- train(wage ~ age + jobclass + education,
+                method="lm", data=training)
+finMod <- modFit$finalModel
+print(modFit)
+```
+
+## Diagnostics
+* Plot predicted values from model fitted to training data
+* Residuals are the error values - distance from predicted to actual values
+* Outliers are labeled on the plot, may want to explore further
+
+```{r}
+plot(finMod, 1, pch=19,cex=0.5, col="#00000010")
+```
+
+## Color by Variables not used in Model
+* Plot fitted values and residual values
+* Race was not included in model, contributes little variance
+* Some outliers may explain some of the outliers
+
+```{r}
+qplot(finMod$fitted, finMod$residuals, colour=race, data=training)
+```
+
+## Plot by INDEX
+* Plot residuals (Y) by index (X)
+* May indicate relationship with age, time
+```{r}
+plot(finMod$residuals, pch=19)
+```
+## Plot Predicted versus True values in Test set
+* Plot wage values in test set versus predicted values in test set
+* Ideally, these two variables would be highly related
+* Explore, identify trends that you may have missed
+```{r}
+pred <- predict(modFit, testing)
+qplot(wage, pred, colour=year, data=testing)
+```
+
+## Use all covariates to build model
+* Predict with all the variables in the data set
+* Model performs a bit better with all variables included
+
+```{r}
+modFitAll <- train(wage ~ ., data=training, method="lm")
+pred <- predict(modFitAll, testing)
+qplot(wage, pred, data=testing)
+```
+
+## Notes
+* Often useful in combination with other models
+* Performs well if data is linear
+* Does not work well with non-linear data
+
+
+## QUIZ 2: 
+* Q2.1: Which command will create non-overlapping training and test sets with
+about 50% of observations assigned to each?
+
+```{r}
+library(AppliedPredictiveModeling)
+data(AlzheimerDisease)
+
+adData <- data.frame(diagnosis,predictors)
+testIndex <- createDataPartition(diagnosis, p = 0.50,list=FALSE)
+training <- adData[-testIndex,]
+testing <- adData[testIndex,]
+dim(training); dim(testing)
+```
+
+## Q2.2 
+* Split cement data into Training and Test sets
+* Fit model using all of the predictor variables
+* Plot outcome against index of residual values from final model
+
+Make a plot of the outcome (CompressiveStrength) versus the index of the samples. 
+Color by each of the variables in the data set (you may find the cut2() function 
+in the Hmisc package useful for turning continuous covariates into factors). 
+What do you notice in these plots?
+
+```{r}
+data(concrete); library(caret); set.seed(1000)
+inTrain = createDataPartition(mixtures$CompressiveStrength, p = 3/4)[[1]]
+training = mixtures[ inTrain,]; testing = mixtures[-inTrain,]
+
+modFitAll <- train(CompressiveStrength ~ ., data=training, method="lm")
+finMod <- modFitAll$finalModel
+print(modFit)
+
+plot(finMod$residuals, pch=19)
+```
+
+```{r}
+summary(finMod); names(mixtures)
+```
+
+```{r}
+library(Hmisc)
+FlyAsh2 <- cut2(training$FlyAsh, g=2)
+qplot(finMod$fitted, finMod$residuals, colour=FlyAsh2, data=training)
+```
+
+## Q2.3: Load the cement data using the commands: 
+* Make a histogram and confirm the SuperPlasticizer variable is skewed. 
+* Normally you might use the log transform to try to make the data more symmetric. Why would that be a poor choice for this variable?
+
+```{r}
+library(caret)
+set.seed(1000)
+inTrain = createDataPartition(mixtures$CompressiveStrength, p = 3/4)[[1]]
+training = mixtures[ inTrain,]
+testing = mixtures[-inTrain,]
+hist(training$Superplasticizer); hist(log10(training$Superplasticizer))
+```
+
+## Q2.4 Find all the predictor variables in the training set that begin with IL. Perform principal components on these variables with the preProcess() function from the caret package. Calculate the number of principal components needed to capture 90% of the variance. How many are there?
+
+```{r}
+library(caret); library(AppliedPredictiveModeling); set.seed(3433)
+data(AlzheimerDisease); adData = data.frame(diagnosis,predictors)
+inTrain = createDataPartition(adData$diagnosis, p = 3/4)[[1]]
+training = adData[ inTrain,]
+testing = adData[-inTrain,]
+```
+
+
+```{r}
+[,58:69] 
+c("IL_11", "IL_13","IL_16","IL_17E","IL_1alpha",
+  "IL_3","IL_4","IL_5","IL_6","IL_6_Receptor", "IL_7", "IL_8") 
+```
+
+
+```{r}
+preProc <- preProcess(training, method = "pca", pcaComp=2)
+adPC <- predict(preProc, training)
+plot(adPC[,1], adPC[,2], col=typeColor)
+```
+```{r}
+preProc <- preProcess(training, method="pca", pcaComp = 2)
+adPC <- predict(preProc, training)
+modelFit <- train(training$type ~ ., method="glm", data=adPC)
+summary(modelFit$finalModel)
+```
+
+```{r}
+names(adData)
+```

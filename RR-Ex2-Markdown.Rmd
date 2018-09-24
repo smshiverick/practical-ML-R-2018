@@ -1,0 +1,75 @@
+R Markdown demo Roger R. Peng
+=============================
+
+First, load some data
+
+```{r}
+library(datasets)
+data("airquality")
+summary(airquality)
+```
+
+# Create pairplots
+
+```{r}
+pairs(airquality)
+```
+
+# Construct regression model
+- Regress Ozone on Wind, Solar Radiation, and Temperature
+
+```{r}
+library(stats)
+fit = lm(Ozone ~ Wind + Solar.R + Temp, data = airquality)
+summary(fit)
+```
+
+### Add unordered list using asterisks (lines separated by return)
+
+* First element
+
+* Second element
+
+* etc. 
+
+You can also use LaTeX to add formulas
+
+## Adding Graphics
+
+```{r showtable, results='asis'}
+library(xtable)
+xt <- xtable(summary(fit))
+print(xt, type = 'html')
+```
+
+## Setting Global options
+
+```{r setoption, echo=FALSE}
+knitr::opts_chunk$set(echo = FALSE, results = 'hide')
+```
+
+First, simulate some data.
+
+```{r simulatedata, echo=TRUE}
+x <- rnorm(100)
+y <- x + rnorm(100, sd = 0.5)
+```
+
+Here is a scatterplot of the data.
+
+```{r scatterplot, fig.height=4}
+par(mar = c(5,4,1,1), las=1)
+plot(x,y, main = "My Simulated Data")
+```
+
+## Common Options: 
+
+### Output
+- results: "asis", "hide"
+- echo: TRUE, FALSE
+
+### Figures
+- fig.height: numeric
+- fig.width: numeric
+
+

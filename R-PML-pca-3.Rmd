@@ -1,0 +1,340 @@
+# PRACTICAL MACHINE LEARNING - Jeff Leek, JHU
+# WEEK 2: PREPROCESSING
+
+# Why Preprocessing?
+* Tranform predictors with strange distributions for better analysis
+* Relevant for model based analyses rather than nonparametric approaches
+* Exploring data for reprocess always use training data
+
+```{r}
+library(caret); library(kernlab); data(spam)
+inTrain <- createDataPartition(y=spam$type, p=0.75, list=FALSE)
+
+training <- spam[inTrain, ]
+testing <- spam[-inTrain, ]
+hist(training$capitalAve, main="", xlab="Average Captial Run Length")
+```
+
+## Preprocessing values in Skewed Distribution
+* Obtain mean and standard deviation 
+* Sample has very high standard deviation
+
+```{r}
+mean(training$capitalAve); sd(training$capitalAve)
+```
+
+## STANDARDIZATION - TRAIN Set
+* Take the difference between actual scores and mean, divide by SD
+* Creates distribution with M = 0 and SD = 1 
+
+```{r}
+trainCapAve <- training$capitalAve
+trainCapAveS <- (trainCapAve - mean(trainCapAve))/sd(trainCapAve)
+mean(trainCapAveS); sd(trainCapAveS)
+```
+
+## STANDARDIZATION - TEST Set
+* Need to use the M and SD from the TRAINING Set to standardize TEST Set 
+* In standardized Test Set, result M != 0 and SD != 1, but close to 
+
+```{r}
+testCapAve <- testing$capitalAve
+testCapAveS <- (testCapAve - mean(trainCapAve))/sd(trainCapAve)
+mean(testCapAveS); sd(testCapAveS)
+```    
+
+## Standardization with preProcess() function:
+* preProcess() built into caret package using every variable except last one (DV)
+* Returns standardized values with M=0, SD=1
+
+
+```{r}
+preObj <- preProcess(training[,-58], method = c("center","scale"))
+trainCapAves <- predict(preObj, training[,-58])$capitalAve
+mean(trainCapAveS); sd(trainCapAveS)
+```
+
+## Using preProcess() Object with TEST set
+* Use preObj to standardize TEST set scores
+* Uses values previously calculate to calculate new score in Test set
+
+```{r}
+testCapAves <- predict(preObj, testing[,-58])$capitalAve
+mean(testCapAveS); sd(testCapAveS)
+```
+
+## Pass preProcess commands directly to train function as command 
+
+
+```{r}
+set.seed(32343)
+modelFit <- train(type ~., data=training,
+                  preProcess = c("center", "scale"), method="glm")
+modelFit
+```
+
+## Standardizing - Box-Cox Transformations
+* Set of transformations that take continuous data and try to make it look normal
+* Estimating certain set of parameters using maximum likelihood estimates (MLE)
+* Creates distribution that is more nearly normal in histogram and normal plot
+
+
+```{r}
+preObj <- preProcess(training[,-58], method = c("BoxCox"))
+trainCapAveS <- predict(preObj, training[,-58])$capitalAve
+par(mfrow=c(1,2)); hist(trainCapAveS); qqnorm(trainCapAveS)
+```
+
+## STANDARDIZATION - IMPUTING DATA
+* Prediction algorithms often cannot handle missing data 'NA'
+* Impute values with K-Nearest-Neighbors Imputation
+* Find K nearest neighbors, calculates average, imputes it to NA
+
+```{r}
+set.seed(13343)
+
+# Make some values NA
+training$capAve <- training$capitalAve
+selectNA <- rbinom(dim(training)[1], size=1, prob=0.05)==1
+training$capitalAve[selectNA] <- NA
+
+# Impute and standardize
+preObj <- preProcess(training[,-58], method = "knnImpute")
+capAve <- predict(preObj,training[,-58])$capAve
+
+# Standardize true values
+capAveTruth <- training$capitalAve
+capAveTruhtS <- (capAveTruth - mean(capAveTruth))/sd(capAveTruth)
+```
+
+## Imputing Data - continued
+* Compare actual and imputed values, look at difference
+* Most differences are very close to zero
+* Use quantile function to compare 
+
+```{r}
+#quantile(capAve - capAveTruth); 
+#quantile((capAve - capAveTruth)[selectNA]);
+quantile((capAve - capAveTruth)[!selectNA])
+
+```
+
+## Important Notes
+* Training and test sets must be processed in the same way (using Training M, SD)
+* Test transformation will likey be imperfect, especially if train, test sets 
+collected at different times
+* Careful when transforming factor variables!
+
+================================
+
+# COVARIATE Creation
+* Covariates are sometimes called features or predictors
+* Variables combined to predict some outcome
+
+## Two levels of Covariate creation
+Level 1: From raw data to covariates
+* Converting images or text data into quantitative or qualitative variables
+* Calculate the proportion of captial letters, word frequency, characters
+
+Level 2: Transforming tidy covariates
+* Building features done only on TRAINING set
+* Best approach is through exploratory analysis (plotting / tables)
+
+## Example: Load Wage data from ISLR library
+* Split data into training and test sets with 70/30 split
+
+
+```{r}
+library(ISLR); library(caret); data(Wage)
+inTrain <- createDataPartition(y=Wage$wage, 
+                               p=0.7, list=FALSE)
+training <- Wage[inTrain,]
+testing <-Wage[-inTrain,]
+
+table(training$jobclass)
+```
+
+## Add Dummy Variables as Covariates
+* Convert factor variables to indicator variables 
+* Take jobclass categories and convert to binary values (0,1)
+* Predict returns to indicator variables: presence absence
+
+```{r}
+dummies <- dummyVars(wage ~ jobclass, data=training)
+head(predict(dummies, newdata=training))
+
+```
+
+## Removing zero covariates
+* Some covariates have zero variability
+* nearZeroVar() identifies features that are not good predictors
+* Helps select covariates that can be excluded from analysis
+
+```{r}
+nsv <- nearZeroVar(training, saveMetrics = TRUE)
+nsv
+```
+
+## Spline Basis - Training Set
+* Sometimes you want to fit curvy models
+* Use bs() function creates polynomial variables
+* df=3 generates up to third degree polynomial: age, age^2, age^3
+
+```{r}
+library(splines)
+bsBasis <- bs(training$age, df=3)
+head(bsBasis)
+```
+
+## Fitting curves with Splines
+* Plot age predicted values of wage from lm1
+* Curve is fit through data rather than straight line
+
+```{r}
+lm1 <- lm(wage ~ bsBasis, data=training)
+plot(training$age, training$wage, pch=19, cex=0.5)
+points(training$age, predict(lm1, newdata=training), 
+       col="red",pch=19, cex=0.5)
+```
+
+## Splines on the TEST Set
+* Critical for machine learning when you create new covariates
+* To create new covariates on Test set, you have to use exact same procedures
+
+```{r}
+head(predict(bsBasis, age=testing$age))
+```
+
+# 2.6 PREPROCESSING with Principal Components Analysis (PCA)
+
+## Finding Correlated Predictors
+* Look for all predictor values that have high correlation
+* Select cutoff correlation of 0.8, 
+
+```{r}
+library(caret); library(kernlab); data(spam)
+inTrain <- createDataPartition(y=spam$type, p=0.75, list=FALSE)
+training <- spam[inTrain, ]
+testing <- spam[-inTrain, ]
+
+M <- abs(cor(training[, -58]))
+diag(M) <- 0
+which(M > 0.8, arr.ind = T)
+```
+
+## Correlated Predictors
+* Columns 32, 34, and 40 have correlations above 0.80
+* Create scatterplot for correlated variables
+
+```{r}
+names(spam)[c(32,34)]; 
+plot(spam[,32],spam[,34])
+
+```
+
+## Basic Idea of PCA 
+* Create a weighted combination of predictors
+* Select the combination that captures the 'most information' possible
+* Reduces number of predictors, reduces noise (averaging)
+
+## Rotate the plot
+* Multiply each variable by 0.71 and add them to create X-axis; difference is Y-axis
+* Most of the points clustered at zero of the x-axis.
+* Adding the two variables together captures most of the information
+
+```{r}
+X <- 0.71*training$num415 + 0.71*training$num857
+Y <- 0.71*training$num415 - 0.71*training$num857
+plot(X,Y)
+```
+
+## Using PCA to Combine Predictors 
+* Adding predictors seems to be the best way to combine them. 
+
+## Related Problems
+* With multivariate variables Xi...Xn
+* Find new set of multivariable variables which are uncorrelated, and explain as
+much variance as possible
+* Put all variables in one matrix, and find best matrix with fewest variables 
+(lower rank) that explains the original data
+
+First goal is statistical, the second goal is data compression
+
+## Principal Components in R-prcomp
+* Plot looks like that obtained by adding feaures and subtracting features
+* PCA allows for construction of components with multiple features
+* Compressing all of the variables down into a small combination of them
+
+```{r}
+smallSpam <- spam[,c(32,34)]
+prComp <- prcomp(smallSpam)
+plot(prComp$x[,1], prComp$x[,2])
+```
+## Rotation Matrix
+* Shows how the two variables are summed up
+* PC1 is 0.71*num857 + 0.71*num415
+* PC2 is 0.71*num857 - 0.71*num415
+
+The first principal component explains most of variability in these variables
+Second principal component explains the second largest portion of variance
+
+
+```{r}
+prComp$rotation
+```
+
+## PCA on SPAM Data
+* First plot emails by color: Black for Ham, Red for Spam
+* Calculates PCA on entire data set, with log transformation
+* PC1 is some combination of predictors that best explains the data
+
+```{r}
+typeColor <- ((spam$type=="spam")*1+1)
+prComp <- prcomp(log10(spam[,-58]+1))
+plot(prComp$x[,1], prComp$x[,2], col=typeColor, xlab="PC1", ylab="PC2")
+```
+
+## Principal Components Analysis
+* PC1 indicates some of the seperation between HAM and SPAM emails
+* Way to reduce size of data size, while capturing large amount of variation
+
+## PCA with CARET
+* Use preProcess() function, indicate transforamtion, method, and number of components
+* Calculates the values of each new principal component, a model fitted to the data
+
+```{r}
+preProc <- preProcess(log10(spam[-58]+1), method = "pca", pcaComp=2)
+spamPC <- predict(preProc, log10(spam[,-58]+1))
+plot(spamPC[,1], spamPC[,2], col=typeColor)
+```
+
+## PREPROCESSING with PCA
+* Fitting general linear model to princpal components on training set
+* Create training predictions using predict() function
+
+```{r}
+preProc <- preProcess(log10(training[,-58]+1), method="pca", pcaComp = 2)
+trainPC <- predict(preProc, log10(training[,-58]+1))
+modelFit <- train(training$type ~ ., method="glm", data=trainPC)
+```
+
+## Fit PC model on Test set
+* Have to use same principal components
+* Pass object created on training set to test set
+* PCA reduces number of components, while maintaining accuracy
+
+```{r}
+testPC <- predict(preProc, log10(testing[,-58]+1))
+confusionMatrix(testing$type, predict(modelFit, testPC))
+```
+
+## Alternative (set # of PCs)
+
+```{r}
+modelFit <- train(training$type ~ ., method="glm", preProcess="pca", data=training)
+confusionMatrix(testing$type, predict(modelFit, testing))
+```
+
+
+
+
